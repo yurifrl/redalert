@@ -1,0 +1,13 @@
+version: '2'
+services:
+  build:
+    image: golang:onbuild
+    working_dir: /go/src/redalert
+    volumes:
+      - .:/go/src/redalert
+  web:
+    image: centurylink/golang-builder
+    command: yurifl/redalert
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/src
