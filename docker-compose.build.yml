@@ -7,7 +7,7 @@ services:
       - .:/go/src/redalert
   web:
     image: centurylink/golang-builder
-    command: yurifl/redalert
+    command: cloud104/redalert
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/src

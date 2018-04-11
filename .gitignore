@@ -1,6 +1,8 @@
 redalert
 notes
 config.json
-*.rice-box.go
-Godeps/_workspace
+vendor
 *.exe
+ui/node_modules
+ui/dist
+web/assets

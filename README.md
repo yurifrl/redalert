@@ -2,10 +2,12 @@
 
 [![Circle CI](https://circleci.com/gh/jonog/redalert.svg?style=svg)](https://circleci.com/gh/jonog/redalert)
 
+[![Launch Stack](https://cdn.rawgit.com/buildkite/cloudformation-launch-stack-button-svg/master/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=redalert&templateURL=https://s3-ap-southeast-2.amazonaws.com/redalert-cloudformation/redalert.yml)
+
 For monitoring your infrastructure and sending notifications if stuff is not ok.
 (e.g. pinging your websites/APIs via HTTP GET at specified intervals, and alerting you if there is downtime).
 
-![](https://cloud.githubusercontent.com/assets/1314353/7707829/7e18fe10-fe84-11e4-9762-322544d1142b.png)
+<img src="https://cloud.githubusercontent.com/assets/1314353/23970218/34e46d0a-0a1d-11e7-8af0-6db94f69f0a9.png" width="500">
 
 ### Features
 
@@ -19,6 +21,8 @@ For monitoring your infrastructure and sending notifications if stuff is not ok.
 * *Execute local commands* & capture output (check type: `command`)
 * *Execute remote commands via SSH* & capture output (check type: `remote-command`)
 * *Run test suite and capture report metrics* via `JUnit XML` format (check type: `test-report`)
+
+Checks will happen at specified intervals or explicit trigger (i.e. trigger check API endpoint).
 
 #### Dashboard and Alerts
 * Alert notifications available on several channels:
@@ -49,7 +53,14 @@ For monitoring your infrastructure and sending notifications if stuff is not ok.
   * source: `json`
 
 #### API
-* Event stats available via `/v1/stats`
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /v1/stats` | Retrieve stats for all checks |
+| `POST /v1/checks/{check_id}/disable` | Disable check |
+| `POST /v1/checks/{check_id}/enable` | Enable check |
+| `POST /v1/checks/{check_id}/trigger` | Trigger check |
+
 
 ### Design
 
@@ -61,7 +72,7 @@ For monitoring your infrastructure and sending notifications if stuff is not ok.
    │     │                              │
    │     └──────────────────────────────┘
    │                    │
-   │                @interval          ┌──────────────────────┐
+   │          @interval or ->trigger   ┌──────────────────────┐
    │                    │            ┌▶│  error during check  │
    │                    ▼            │ └──────────────────────┘
    │        ┌──────────────────────┐ │ ┌──────────────────────┐
@@ -100,6 +111,14 @@ Run via Docker:
 ```
 docker run -d -P -v /path/to/config.json:/config.json jonog/redalert
 ```
+Quick bootstrap example:
+```
+curl https://gist.githubusercontent.com/jonog/32c953aedf03edf71acaef53d89ce785/raw/e87f7e933165574e1d441781465223bfe6c3f1aa/sample_redalert_config.json > /tmp/sample_redalert_config.json && \
+    docker run -d -P -v /tmp/sample_redalert_config.json:/config.json --name test_redalert jonog/redalert && \
+    open "http://$(docker port test_redalert 8888)"
+```
+
+
 
 #### Usage
 Get started with the `redalert` command:
@@ -116,6 +135,8 @@ Available Commands:
 Flags:
   -d, --config-db string     config database url
   -f, --config-file string   config file (default "config.json")
+  -s, --config-s3 string     config S3
+  -u, --config-url string    config url
   -h, --help                 help for redalert
   -p, --port int             port to run web server (default 8888)
   -r, --rpc-port int         port to run RPC server (default 8889)
@@ -123,10 +144,16 @@ Flags:
 Use "redalert [command] --help" for more information about a command.
 ```
 
-#### Monitoring Configuration
-Configure servers to monitor & alert settings via `config.json`.
+#### Configuration
 
-##### Simple config.json
+Configure servers to monitor & alert settings via a configuration file:
+* a local file (specified by `-f` or `--config-file`) - defaults to `config.json`
+* a file remotely accessible via HTTP (specified by `-u` or `--config-url`)
+* a file hosted in an AWS S3 bucket (specified by `-s` or `--config-s3`)
+
+TODO: document Postgres configuration option
+
+##### Example config.json
 ```
 {
    "checks":[
@@ -218,7 +245,8 @@ Configure servers to monitor & alert settings via `config.json`.
                     "source": "text",
                     "target": "400 Bad Request"
                 }
-            ]
+            ],
+            "verbose_logging": true
         },
         {
             "name": "Demo Exponential Backoff",
@@ -466,28 +494,27 @@ With each failure, the subsequent check will be delayed by the last delayed amou
 #### Note for Gmail
 If there are errors sending email via gmail - enable `Access for less secure apps` under Account permissions @ https://www.google.com/settings/u/2/security
 
+### Deployment
+
+#### CloudFormation Stacks
+
+See [redalert-cloudformation](https://github.com/jonog/redalert-cloudformation)
+
+##### EC2 & ELB
+[![Launch Stack](https://cdn.rawgit.com/buildkite/cloudformation-launch-stack-button-svg/master/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=redalert&templateURL=https://s3-ap-southeast-2.amazonaws.com/redalert-cloudformation/redalert.yml)
+
+##### EC2 & ELB & S3 config
+[![Launch Stack](https://cdn.rawgit.com/buildkite/cloudformation-launch-stack-button-svg/master/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=redalert&templateURL=https://s3-ap-southeast-2.amazonaws.com/redalert-cloudformation/redalert.yml)
+
+
 ### Development
 
 #### Setup
-Getting started:
-```
-go get github.com/tools/godep
-```
-
-Embedding static web files:
-```
-go get github.com/GeertJohan/go.rice
-go get github.com/GeertJohan/go.rice/rice
-cd web && rice embed-go && cd ..
-```
-
-#### Dockerizing Redalert
-```
-docker run --rm \
-  -v "$(pwd):/src" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  centurylink/golang-builder
-```
+Dependencies:
+* Go dependency manager - [glide](https://github.com/Masterminds/glide)
+* Embedding static assets into binary - [go.rice](https://github.com/GeertJohan/go.rice)
+* `protoc` for gRPC code generation - [gRPC](http://www.grpc.io/docs/quickstart/go.html)
+* Docker-machine for tests
 
 ### Credits
 Rocket emoji via https://github.com/twitter/twemoji
